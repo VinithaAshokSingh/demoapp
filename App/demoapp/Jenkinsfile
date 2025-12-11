@@ -1,0 +1,91 @@
+pipeline {
+    agent any
+
+    triggers {
+        githubPush()   // Webhook trigger from GitHub
+    }
+
+    environment {
+        WAR_NAME = "myapp.war"
+        BACKUP_DIR = "/opt/war_backups"
+        TOMCAT_DEV = "/opt/tomcat-dev/webapps"
+        TOMCAT_QA = "/opt/tomcat-qa/webapps"
+        TOMCAT_PROD = "/opt/tomcat-prod/webapps"
+    }
+
+    stages {
+
+        stage('Compile') {
+            steps {
+                echo "Compiling the project..."
+                sh 'mvn clean compile'
+            }
+        }
+
+        stage('Unit Test') {
+            steps {
+                echo "Running unit tests..."
+                sh 'mvn test'
+            }
+        }
+
+        stage('Build WAR') {
+            steps {
+                echo "Building WAR file..."
+                sh 'mvn package'
+            }
+        }
+
+        stage('Backup WAR') {
+            steps {
+                echo "Backing up WAR file..."
+                sh '''
+                    mkdir -p ${BACKUP_DIR}
+                    cp target/${WAR_NAME} ${BACKUP_DIR}/${WAR_NAME}-$(date +%F-%H-%M-%S)
+                '''
+            }
+        }
+
+        stage('Deploy to Dev') {
+            steps {
+                echo "Deploying WAR to DEV..."
+                sh '''
+                    rm -rf ${TOMCAT_DEV}/${WAR_NAME}
+                    cp target/${WAR_NAME} ${TOMCAT_DEV}/
+                '''
+            }
+        }
+
+        stage('Approval for QA') {
+            steps {
+                input message: "Proceed to QA Deployment?"
+            }
+        }
+
+        stage('Deploy to QA') {
+            steps {
+                echo "Deploying WAR to QA..."
+                sh '''
+                    rm -rf ${TOMCAT_QA}/${WAR_NAME}
+                    cp target/${WAR_NAME} ${TOMCAT_QA}/
+                '''
+            }
+        }
+
+        stage('Approval for PROD') {
+            steps {
+                input message: "Proceed to Production Deployment?"
+            }
+        }
+
+        stage('Deploy to Prod') {
+            steps {
+                echo "Deploying WAR to PROD..."
+                sh '''
+                    rm -rf ${TOMCAT_PROD}/${WAR_NAME}
+                    cp target/${WAR_NAME} ${TOMCAT_PROD}/
+                '''
+            }
+        }
+    }
+} 
